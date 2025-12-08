@@ -29,18 +29,26 @@ The repository is organized to facilitate easy navigation and reproduction of re
 
 ```
 Dagger-bench/
-├── benchmarks/          # Performance benchmarks
-│   ├── scalability/     # Scalability analysis
-│   ├── throughput/      # Throughput measurements
-│   ├── memory/          # Memory usage benchmarks
-│   └── comparison/      # Comparisons with other frameworks
-├── demos/               # Demonstration applications
-│   ├── basic/           # Basic usage examples
-│   ├── advanced/        # Advanced patterns and techniques
-│   └── real-world/      # Real-world application scenarios
-├── data/                # Sample datasets and results
-├── scripts/             # Utility scripts for running benchmarks
-└── results/             # Benchmark results and analysis
+├── benchmarks/                # Performance benchmarks grouped by theme
+│   ├── comparison/
+│   ├── memory/
+│   ├── scalability/
+│   └── throughput/
+├── demos/                     # Demonstration applications
+│   ├── basic/                 # Reserved for introductory examples
+│   ├── advanced/
+│   │   └── barnes/            # Barnes-Hut parallel N-body demo
+│   │       ├── Project.toml
+│   │       └── barnes-hut.jl
+│   └── real-world/
+│       └── seam/              # Seam-carving image processing demo
+│           ├── Project.toml
+│           ├── par_seam.jl
+│           ├── seq_seam.jl
+│           └── Dagger.jl/     # Embedded Dagger.jl checkout for experiments
+├── data/                      # Sample datasets and results (placeholder)
+├── scripts/                   # Utility scripts for running benchmarks (placeholder)
+└── results/                   # Benchmark results and analysis (placeholder)
 ```
 
 ## Getting Started
@@ -68,16 +76,38 @@ Pkg.instantiate()
 
 ### Running Benchmarks
 
-Each benchmark can be run independently using Julia:
+Each benchmark can be run independently using Julia. Drop benchmark scripts into the appropriate thematic folder under `benchmarks/` and include them directly:
 
 ```julia
 # Example: Run a specific benchmark
 include("benchmarks/scalability/strong_scaling.jl")
 ```
 
-For batch execution of all benchmarks:
-```julia
-include("scripts/run_all_benchmarks.jl")
+Automation helpers belong under `scripts/`. When orchestration utilities are added, invoke them from there (placeholder).
+
+### Running Demos
+
+Each demo folder is a standalone Julia project; activate it before running scripts.
+
+```bash
+# Seam carving demo (parallel)
+cd demos/real-world/seam
+julia --project=. par_seam.jl
+
+# Seam carving demo (sequential reference)
+cd demos/real-world/seam
+julia --project=. seq_seam.jl
+
+# Barnes-Hut N-body demo
+cd demos/advanced/barnes
+julia --project=. barnes-hut.jl
+```
+
+The seam demo vendors a Dagger.jl checkout at `demos/real-world/seam/Dagger.jl/`. Run its package tests with:
+
+```bash
+cd demos/real-world/seam/Dagger.jl
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 ```
 
 ## Benchmark Categories
