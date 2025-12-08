@@ -1,0 +1,4 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Dagger = "d58978e5-989f-55fb-8d15-ea34adc7bf54"
+TimespanLogging = "a526e669-04d3-4846-9525-c66122c55f63"
