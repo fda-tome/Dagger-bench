@@ -1,0 +1,96 @@
+#!/bin/bash
+#PBS -l select=16:system=aurora
+#PBS -l place=scatter
+#PBS -l walltime=03:00:00
+#PBS -q prod
+#PBS -A Aurora_deployment
+#PBS -N dagger_barnes_weak_scaling
+#PBS -j oe
+
+# Aurora Barnes-Hut Weak Scaling Study
+# Problem size increases proportionally with processor count
+
+module use /soft/modulefiles
+module load frameworks/2024.1
+module load julia
+
+cd $PBS_O_WORKDIR
+
+# Setup
+BENCHMARK_DIR="${PBS_O_WORKDIR}/benchmarks/comparison"
+RESULTS_DIR="${PBS_O_WORKDIR}/results/aurora_weak_$(date +%Y%m%d_%H%M%S)"
+mkdir -p $RESULTS_DIR
+
+cd $BENCHMARK_DIR
+
+# Setup for Dagger MPI execution
+export JULIA_MPI_BINARY=system
+export JULIA_NUM_THREADS=104
+
+cat $PBS_NODEFILE | sort -u > hostfile
+
+# Weak scaling: constant work per processor
+export BODIES_PER_CORE=1000    # 1K bodies per core
+export BARNES_THETA=0.5
+export BENCH_RUNS=5
+
+echo "========================================"
+echo "Aurora Weak Scaling Study - Barnes-Hut"
+echo "========================================"
+echo "Bodies per core: ${BODIES_PER_CORE}"
+echo "Theta: ${BARNES_THETA}"
+echo "Runs per configuration: ${BENCH_RUNS}"
+echo "Job ID: ${PBS_JOBID}"
+echo "Nodes allocated: 16"
+echo "========================================"
+
+# Test configurations: 1, 2, 4, 8, 16 nodes
+for NODES in 1 2 4 8 16; do
+    NPROCS=$((NODES * 104))
+    BARNES_N=$((NPROCS * BODIES_PER_CORE))
+    
+    echo ""
+    echo ">>> Testing ${NODES} nodes (${NPROCS} cores) with N=${BARNES_N}..."
+    echo ""
+    
+    # Create node-specific machine file
+    head -n ${NODES} hostfile > hostfile_${NODES}
+    
+    # Set problem size for this configuration
+    export BARNES_N
+    
+    # Run with MPI - Dagger auto-discovers processors
+    mpiexec -n ${NPROCS} \
+            -ppn 104 \
+            --hostfile hostfile_${NODES} \
+            julia --project=../../demos/advanced/barnes \
+                  -t 1 \
+                  barnes_benchmark_mpi.jl \
+            2>&1 | tee ${RESULTS_DIR}/barnes_weak_${NODES}nodes_N${BARNES_N}.log
+    
+    # Copy CSV results
+    cp barnes_benchmark_*.csv ${RESULTS_DIR}/ 2>/dev/null || true
+    
+    echo "Completed ${NODES} nodes with N=${BARNES_N}"
+    sleep 5
+done
+
+# Generate summary
+echo ""
+echo "========================================"
+echo "Weak Scaling Study Complete"
+echo "========================================"
+echo "Results saved to: ${RESULTS_DIR}"
+echo ""
+echo "Problem sizes tested:"
+echo "  1 node  (104 cores):     N=104,000"
+echo "  2 nodes (208 cores):     N=208,000"
+echo "  4 nodes (416 cores):     N=416,000"
+echo "  8 nodes (832 cores):     N=832,000"
+echo "  16 nodes (1,664 cores):  N=1,664,000"
+echo ""
+echo "Ideal weak scaling: constant execution time"
+echo "========================================"
+
+# Clean up
+rm -f hostfile_* barnes_benchmark_*.csv

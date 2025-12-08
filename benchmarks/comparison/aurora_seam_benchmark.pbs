@@ -1,0 +1,105 @@
+#!/bin/bash
+#PBS -l select=4:system=aurora
+#PBS -l place=scatter
+#PBS -l walltime=01:30:00
+#PBS -q prod
+#PBS -A Aurora_deployment
+#PBS -N dagger_seam_scaling
+#PBS -j oe
+
+# Aurora Seam Carving Benchmark
+
+module use /soft/modulefiles
+module load frameworks/2024.1
+module load julia
+module load imagemagick  # For image manipulation if needed
+
+cd $PBS_O_WORKDIR
+
+# Setup
+BENCHMARK_DIR="${PBS_O_WORKDIR}/benchmarks/comparison"
+RESULTS_DIR="${PBS_O_WORKDIR}/results/aurora_seam_$(date +%Y%m%d_%H%M%S)"
+DEMO_DIR="${PBS_O_WORKDIR}/demos/real-world/seam"
+mkdir -p $RESULTS_DIR
+
+cd $BENCHMARK_DIR
+
+# Setup for Dagger
+export JULIA_MPI_BINARY=system
+export JULIA_NUM_THREADS=104
+
+cat $PBS_NODEFILE | sort -u > hostfile
+
+echo "========================================"
+echo "Aurora Seam Carving Benchmark (Dagger.jl)"
+echo "========================================"
+echo "Job ID: ${PBS_JOBID}"
+echo "Nodes allocated: 4"
+echo "Total cores: 416"
+echo "========================================"
+
+# Test 1: Single node baseline (4K image)
+echo ""
+echo ">>> Test 1: Single Node Baseline (4K image)"
+export SEAM_IMG="${DEMO_DIR}/test_4k.jpg"  # Prepare this image beforehand
+export SEAM_COUNT=50
+export BENCH_RUNS=5
+NPROCS=104
+
+head -n 1 hostfile > hostfile_1
+
+# Single node - use threading, Dagger auto-discovers CPUProcessors
+julia --project=../../demos/real-world/seam \
+      -t ${NPROCS} \
+      seam_benchmark.jl \
+      2>&1 | tee ${RESULTS_DIR}/seam_1node_4k.log
+
+cp seam_benchmark_*.csv ${RESULTS_DIR}/ 2>/dev/null || true
+
+# Test 2: 2 nodes (8K image)
+echo ""
+echo ">>> Test 2: 2 Nodes (8K image)"
+export SEAM_IMG="${DEMO_DIR}/test_8k.jpg"  # 7680x4320
+export SEAM_COUNT=100
+NPROCS=208
+
+head -n 2 hostfile > hostfile_2
+
+# Multi-node - use MPI, Dagger discovers all processors
+mpiexec -n ${NPROCS} \
+        -ppn 104 \
+        --hostfile hostfile_2 \
+        julia --project=../../demos/real-world/seam \
+              -t 1 \
+              seam_benchmark_mpi.jl \
+        2>&1 | tee ${RESULTS_DIR}/seam_2nodes_8k.log
+
+cp seam_benchmark_*.csv ${RESULTS_DIR}/ 2>/dev/null || true
+
+# Test 3: 4 nodes (16K image or very large)
+echo ""
+echo ">>> Test 3: 4 Nodes (Large image)"
+export SEAM_IMG="${DEMO_DIR}/test_large.jpg"  # Very large image
+export SEAM_COUNT=200
+NPROCS=416
+
+# 4 nodes via MPI
+mpiexec -n ${NPROCS} \
+        -ppn 104 \
+        --hostfile hostfile \
+        julia --project=../../demos/real-world/seam \
+              -t 1 \
+              seam_benchmark_mpi.jl \
+        2>&1 | tee ${RESULTS_DIR}/seam_4nodes_large.log
+
+cp seam_benchmark_*.csv ${RESULTS_DIR}/ 2>/dev/null || true
+
+echo ""
+echo "========================================"
+echo "Seam Carving Benchmark Complete"
+echo "========================================"
+echo "Results saved to: ${RESULTS_DIR}"
+echo "========================================"
+
+# Clean up
+rm -f hostfile_* seam_benchmark_*.csv
