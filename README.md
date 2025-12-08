@@ -141,6 +141,8 @@ Please include:
 
 If you use these benchmarks or build upon this work, please cite our paper:
 
+> **Note**: Citation details will be updated upon publication. The BibTeX entry below contains placeholder values.
+
 ```bibtex
 @article{dagger-bench-2024,
   title={Performance Analysis of Dagger.jl: A Study in Task-Based Parallel Computing},
