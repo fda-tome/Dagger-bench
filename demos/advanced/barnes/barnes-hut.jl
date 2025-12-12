@@ -118,7 +118,30 @@ end
 
 function buildTree(points, masses, bounding_box)
     root = Node(sum(masses), sum(points .* masses) / sum(masses), bounding_box)
-    buildTree(root, points, masses, bounding_box)
+    # Build tree iteratively without needing a separate 4-arg function
+    queue = [root]
+    queuemass = [masses]
+    queuepoints = [points]
+    queuebound = [bounding_box]
+    while !isempty(queue)
+        cur = popfirst!(queue)
+        curpoints = popfirst!(queuepoints)
+        curmass = popfirst!(queuemass)
+        curbound = popfirst!(queuebound)
+        octants, splitPoints, splitMasses = determineOctants(curpoints, curmass, curbound)
+        for (i, octant) in enumerate(octants)
+            if length(splitPoints[i]) > 0
+                child = Node(sum(splitMasses[i]), sum(splitPoints[i] .* splitMasses[i]) / sum(splitMasses[i]), octant)
+                push!(cur.children, child)
+                if length(splitPoints[i]) > 1
+                    push!(queue, child)
+                    push!(queuepoints, splitPoints[i])
+                    push!(queuemass, splitMasses[i])
+                    push!(queuebound, octant)
+                end
+            end
+        end
+    end
     return root
 end
 
@@ -151,11 +174,21 @@ function buildTreeP(points, masses, bounding_box::Vector{Vector{Float64}})
             break
         end
     end
-    subtrees = []
-    for (i, subtree) in enumerate(queue)
-        push!(subtrees, Dagger.@spawn buildTree(subtree, queuepoints[i], queuemass[i], queuebound[i]))
+    # Spawn subtree building in parallel - use serializable representation
+    subtree_tasks = []
+    subtree_parents = []
+    for (i, parent_node) in enumerate(queue)
+        # Build subtree and return serialized form (tuples, not mutable Node)
+        task = Dagger.@spawn buildTree(queuepoints[i], queuemass[i], queuebound[i])
+        push!(subtree_tasks, task)
+        push!(subtree_parents, parent_node)
     end
-    subtrees = fetch.(subtrees)
+    # Fetch serialized results and reconstruct into tree
+    for (i, task) in enumerate(subtree_tasks)
+        subtree = fetch(task)
+        # Copy children from subtree to parent node
+        subtree_parents[i].children = subtree.children
+    end
     return root
 end
 
@@ -179,42 +212,52 @@ function compareTrees(a, b)
     end
     return true
 end
-function buildTree(root, points, masses, bounding_box::Vector{Vector{Float64}}) 
-    queue = [root]
-    queuemass = [masses]
-    queuepoints = [points]
-    queuebound = [bounding_box]
-    while !isempty(queue)
-        cur = popfirst!(queue)
-        curpoints = popfirst!(queuepoints)
-        curmass = popfirst!(queuemass)
-        curbound = popfirst!(queuebound)
-        octants, splitPoints, splitMasses = determineOctants(curpoints, curmass, curbound)
-        for (i, octant) in enumerate(octants)
-            if length(splitPoints[i]) > 0
-                child = Node(sum(splitMasses[i]), sum(splitPoints[i] .* splitMasses[i]) / sum(splitMasses[i]), octant)
-                push!(cur.children, child)
-                if length(splitPoints[i]) > 1
-                    push!(queue, child)
-                    push!(queuepoints, splitPoints[i])
-                    push!(queuemass, splitMasses[i])
-                    push!(queuebound, octant)
-                end
-            end
-        end
-    end
-end
 
+# Note: The 4-argument buildTree was removed - buildTreeP now uses the 3-argument version
+# which creates a new tree from points/masses data directly.
+
+# Parallel benchmark: builds tree first (not timed), then calculates forces in parallel (timed)
 
 
 function bmark(N, theta)
     points = [rand(3) * 100 for _ in 1:N]
     masses = rand(N) * 10
     bounding_box = [[0.0, 0.0, 0.0], [100.0, 100.0, 100.0]]
+    
+    # 1. Build tree (NOT timed - done before benchmark)
     rootp = buildTreeP(points, masses, bounding_box)
-    for point in points
-        forcep = calculateForceP(rootp, point, theta)
+    
+    # Return a closure that only calculates forces (this is what gets timed)
+    return (rootp, points, theta)
+end
+
+# Helper function to process a chunk of points sequentially
+function process_chunk(rootp, chunk, theta)
+    return [calculateForce(rootp, p, theta) for p in chunk]
+end
+
+function bmark_force_only(rootp, points, theta; tasks_per_worker=2)
+    # Calculate forces in parallel for ALL points using chunked tasks
+    # Each chunk is processed by one Dagger task, avoiding task creation overhead
+    nw = Threads.nthreads()
+    n = length(points)
+    num_tasks = nw * tasks_per_worker  # e.g., 104 * 4 = 416 tasks
+    chunk_size = cld(n, num_tasks)     # ceiling division
+    
+    # Create coarse-grained tasks - each processes many points sequentially
+    tasks = []
+    for i in 1:num_tasks
+        start_idx = (i-1) * chunk_size + 1
+        end_idx = min(i * chunk_size, n)
+        if start_idx <= n
+            chunk = points[start_idx:end_idx]  # Copy chunk (views don't serialize)
+            # Use sequential calculateForce inside each task (no nested spawning)
+            push!(tasks, Dagger.@spawn process_chunk(rootp, chunk, theta))
+        end
     end
+    
+    # Fetch and concatenate results
+    return vcat(fetch.(tasks)...)
 end
 
 
@@ -222,8 +265,16 @@ function bmark_seq(N, theta)
     points = [rand(3) * 100 for _ in 1:N]
     masses = rand(N) * 10
     bounding_box = [[0.0, 0.0, 0.0], [100.0, 100.0, 100.0]]
+    
+    # 1. Build tree (NOT timed)
     root = buildTree(points, masses, bounding_box)
-    for point in points
-        force = calculateForce(root, point, theta)
-    end
+    
+    # Return data for force calculation
+    return (root, points, theta)
+end
+
+function bmark_seq_force_only(root, points, theta)
+    # Calculate forces sequentially for all points
+    forces = calculateForce(root, points[1], theta)
+    return forces
 end

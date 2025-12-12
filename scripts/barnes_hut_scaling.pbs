@@ -1,0 +1,156 @@
+#!/bin/bash
+#PBS -l select=1:ncpus=104:mem=350gb
+#PBS -l walltime=6:00:00
+#PBS -A dagger
+#PBS -q prod
+#PBS -l filesystems=flare
+#PBS -N barnes_hut_scaling
+#PBS -o /flare/dagger/paper/Dagger-bench/results/barnes_hut_scaling.out
+#PBS -e /flare/dagger/paper/Dagger-bench/results/barnes_hut_scaling.err
+
+
+# Barnes-Hut Thread Scaling Benchmark (PBS Batch Script)
+# Runs both WEAK and STRONG scaling benchmarks
+# Submit with: qsub scripts/barnes_hut_scaling.pbs
+
+# Change to project directory
+cd /flare/dagger/paper/Dagger-bench
+
+# Setup paths
+SCRIPT_DIR="/flare/dagger/paper/Dagger-bench/scripts"
+PROJECT_DIR="/flare/dagger/paper/Dagger-bench"
+OUTPUT_DIR="${PROJECT_DIR}/results"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# Weak scaling files
+WEAK_OUTPUT_FILE="${OUTPUT_DIR}/barnes_hut_weak_scaling_${TIMESTAMP}.log"
+WEAK_CSV_FILE="${OUTPUT_DIR}/barnes_hut_weak_scaling_${TIMESTAMP}.csv"
+
+# Strong scaling files
+STRONG_OUTPUT_FILE="${OUTPUT_DIR}/barnes_hut_strong_scaling_${TIMESTAMP}.log"
+STRONG_CSV_FILE="${OUTPUT_DIR}/barnes_hut_strong_scaling_${TIMESTAMP}.csv"
+
+# Strong scaling fixed problem size
+BARNES_N=10000000  # 10 million particles
+BARNES_THETA=0.5
+
+# Create results directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+# Thread counts (powers of 2, plus 104 for full Aurora node)
+THREAD_COUNTS=(1 2 4 8 16 32 64 104)
+
+echo "=========================================="
+echo "Barnes-Hut Thread Scaling Benchmark (PBS)"
+echo "=========================================="
+echo "Job ID: $PBS_JOBID"
+echo "Node: $(hostname)"
+echo "Start time: $(date)"
+echo ""
+
+# ============================================================================
+# WEAK SCALING BENCHMARK
+# ============================================================================
+echo ""
+echo "##########################################################################"
+echo "# WEAK SCALING BENCHMARK"
+echo "# Problem size scales with threads: N = 500000 * threads"
+echo "##########################################################################"
+echo ""
+echo "Output file: $WEAK_OUTPUT_FILE"
+echo "CSV file: $WEAK_CSV_FILE"
+
+# Header for CSV results
+echo "threads,N,theta,par_time" > "$WEAK_CSV_FILE"
+
+for threads in "${THREAD_COUNTS[@]}"; do
+    echo "------------------------------------------"
+    echo "[WEAK] Running with $threads thread(s)..."
+    echo "------------------------------------------"
+    
+    # Run Julia with specified thread count and capture output
+    OUTPUT=$(julia --threads=$threads --project="$PROJECT_DIR" "$SCRIPT_DIR/barnes_hut_benchmark.jl" 2>&1)
+    
+    # Save full output to log
+    echo "$OUTPUT" >> "$WEAK_OUTPUT_FILE"
+    echo "$OUTPUT"
+    
+    # Extract CSV line and append to CSV file
+    CSV_LINE=$(echo "$OUTPUT" | grep "^CSV_OUTPUT:" | sed 's/CSV_OUTPUT://')
+    if [ -n "$CSV_LINE" ]; then
+        echo "$CSV_LINE" >> "$WEAK_CSV_FILE"
+    fi
+    
+    echo ""
+done
+
+echo "=========================================="
+echo "Weak Scaling Benchmark Complete"
+echo "=========================================="
+
+# Generate weak scaling plots
+echo ""
+echo "Generating weak scaling plots..."
+julia --project="$PROJECT_DIR" "$SCRIPT_DIR/plot_barnes_hut_scaling.jl" "$WEAK_CSV_FILE"
+
+# ============================================================================
+# STRONG SCALING BENCHMARK
+# ============================================================================
+echo ""
+echo "##########################################################################"
+echo "# STRONG SCALING BENCHMARK"
+echo "# Fixed problem size: N = $BARNES_N particles"
+echo "##########################################################################"
+echo ""
+echo "Output file: $STRONG_OUTPUT_FILE"
+echo "CSV file: $STRONG_CSV_FILE"
+
+# Header for CSV results (with statistics from multiple tree configurations)
+echo "threads,N,theta,par_time,mean_time,std_time,min_time,max_time" > "$STRONG_CSV_FILE"
+
+for threads in "${THREAD_COUNTS[@]}"; do
+    echo "------------------------------------------"
+    echo "[STRONG] Running with $threads thread(s)..."
+    echo "------------------------------------------"
+    
+    # Run Julia with specified thread count and fixed problem size
+    OUTPUT=$(BARNES_N=$BARNES_N BARNES_THETA=$BARNES_THETA julia --threads=$threads --project="$PROJECT_DIR" "$SCRIPT_DIR/barnes_hut_strong_benchmark.jl" 2>&1)
+    
+    # Save full output to log
+    echo "$OUTPUT" >> "$STRONG_OUTPUT_FILE"
+    echo "$OUTPUT"
+    
+    # Extract CSV line and append to CSV file
+    CSV_LINE=$(echo "$OUTPUT" | grep "^CSV_OUTPUT:" | sed 's/CSV_OUTPUT://')
+    if [ -n "$CSV_LINE" ]; then
+        echo "$CSV_LINE" >> "$STRONG_CSV_FILE"
+    fi
+    
+    echo ""
+done
+
+echo "=========================================="
+echo "Strong Scaling Benchmark Complete"
+echo "=========================================="
+
+# Generate strong scaling plots
+echo ""
+echo "Generating strong scaling plots..."
+julia --project="$PROJECT_DIR" "$SCRIPT_DIR/plot_barnes_hut_strong_scaling.jl" "$STRONG_CSV_FILE"
+
+# ============================================================================
+# FINAL SUMMARY
+# ============================================================================
+echo ""
+echo "##########################################################################"
+echo "# ALL BENCHMARKS COMPLETE"
+echo "##########################################################################"
+echo "End time: $(date)"
+echo ""
+echo "Results:"
+echo "  Weak scaling CSV:   $WEAK_CSV_FILE"
+echo "  Weak scaling log:   $WEAK_OUTPUT_FILE"
+echo "  Strong scaling CSV: $STRONG_CSV_FILE"
+echo "  Strong scaling log: $STRONG_OUTPUT_FILE"
+echo ""
+echo "All done!"

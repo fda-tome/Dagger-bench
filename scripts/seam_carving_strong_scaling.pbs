@@ -1,0 +1,101 @@
+#!/bin/bash
+#PBS -l select=1:ncpus=104:mem=350gb
+#PBS -l walltime=6:00:00
+#PBS -A dagger
+#PBS -q prod
+#PBS -l filesystems=flare
+#PBS -N seam_carving_strong
+#PBS -o /flare/dagger/paper/Dagger-bench/results/seam_carving_strong_scaling.out
+#PBS -e /flare/dagger/paper/Dagger-bench/results/seam_carving_strong_scaling.err
+#PBS -j oe
+
+# Seam Carving STRONG Scaling Benchmark (PBS Batch Script)
+# Fixed image size: 4096x4096
+# Submit with: qsub scripts/seam_carving_strong_scaling.pbs
+
+set -e
+
+# Change to project directory
+cd /flare/dagger/paper/Dagger-bench
+
+SCRIPT_DIR="scripts"
+OUTPUT_DIR="results"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+mkdir -p "$OUTPUT_DIR"
+
+# Configuration
+WORKER_COUNTS=(1 2 4 8 16 32 64)
+
+# Strong scaling config (fixed image size)
+SEAM_ROWS=4096
+SEAM_COLS=4096
+
+# Common config
+SEAM_BLOCK_BASE=512
+SEAM_ASSIGNMENT=blockcol
+NUM_SAMPLES=3
+
+# Output files
+CSV_FILE="${OUTPUT_DIR}/seam_carving_strong_scaling_${TIMESTAMP}.csv"
+LOG_FILE="${OUTPUT_DIR}/seam_carving_strong_scaling_${TIMESTAMP}.log"
+
+echo "=============================================="
+echo "SEAM CARVING STRONG SCALING BENCHMARK"
+echo "=============================================="
+echo "Job ID: $PBS_JOBID"
+echo "Node: $(hostname)"
+echo "Timestamp: $TIMESTAMP"
+echo ""
+echo "Fixed image size: ${SEAM_ROWS}x${SEAM_COLS}"
+echo "Total pixels: $((SEAM_ROWS * SEAM_COLS))"
+echo "Block base: $SEAM_BLOCK_BASE"
+echo "Assignment: $SEAM_ASSIGNMENT"
+echo "Worker counts: ${WORKER_COUNTS[*]}"
+echo "=============================================="
+
+# Initialize CSV
+echo "workers,rows,cols,pixels,base,seq_time,par_time,par_mean,par_std,speedup" > "$CSV_FILE"
+
+for workers in "${WORKER_COUNTS[@]}"; do
+    echo ""
+    echo "----------------------------------------------"
+    echo "Strong scaling: $workers workers"
+    echo "----------------------------------------------"
+    
+    TARGET_WORKERS=$workers \
+    SEAM_ROWS=$SEAM_ROWS \
+    SEAM_COLS=$SEAM_COLS \
+    SEAM_BLOCK_BASE=$SEAM_BLOCK_BASE \
+    SEAM_ASSIGNMENT=$SEAM_ASSIGNMENT \
+    NUM_SAMPLES=$NUM_SAMPLES \
+    julia --project=. "${SCRIPT_DIR}/seam_carving_strong_benchmark.jl" 2>&1 | tee -a "$LOG_FILE" | while read line; do
+        echo "$line"
+        if [[ "$line" == CSV_OUTPUT:* ]]; then
+            csv_data="${line#CSV_OUTPUT:}"
+            echo "$csv_data" >> "$CSV_FILE"
+        fi
+    done
+done
+
+echo ""
+echo "=============================================="
+echo "GENERATING PLOTS"
+echo "=============================================="
+
+julia --project=. "${SCRIPT_DIR}/plot_seam_carving_strong_scaling.jl" "$CSV_FILE"
+
+echo ""
+echo "=============================================="
+echo "BENCHMARK COMPLETE"
+echo "=============================================="
+echo ""
+echo "Results:"
+cat "$CSV_FILE"
+echo ""
+echo "Output files:"
+echo "  CSV: $CSV_FILE"
+echo "  Log: $LOG_FILE"
+echo "  Plots: ${OUTPUT_DIR}/plots/"
+echo ""
+echo "End time: $(date)"

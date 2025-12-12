@@ -1,0 +1,83 @@
+#!/bin/bash
+#PBS -l select=1:ncpus=104:mem=350gb
+#PBS -l walltime=6:00:00
+#PBS -A dagger
+#PBS -q prod
+#PBS -l filesystems=flare
+#PBS -N barnes_hut_weak
+#PBS -o /flare/dagger/paper/Dagger-bench/results/barnes_hut_weak_scaling.out
+#PBS -e /flare/dagger/paper/Dagger-bench/results/barnes_hut_weak_scaling.err
+#PBS -j oe
+
+# Barnes-Hut WEAK Scaling Benchmark (PBS Batch Script)
+# Problem size scales with threads: N = 500000 * threads
+# Submit with: qsub scripts/barnes_hut_weak_scaling.pbs
+
+# Change to project directory
+cd /flare/dagger/paper/Dagger-bench
+
+# Setup paths
+SCRIPT_DIR="/flare/dagger/paper/Dagger-bench/scripts"
+PROJECT_DIR="/flare/dagger/paper/Dagger-bench"
+OUTPUT_DIR="${PROJECT_DIR}/results"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# Output files
+OUTPUT_FILE="${OUTPUT_DIR}/barnes_hut_weak_scaling_${TIMESTAMP}.log"
+CSV_FILE="${OUTPUT_DIR}/barnes_hut_weak_scaling_${TIMESTAMP}.csv"
+
+# Create results directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+# Thread counts (powers of 2, plus 104 for full Aurora node)
+THREAD_COUNTS=(1 2 4 8 16 32 64 104)
+
+echo "=========================================="
+echo "Barnes-Hut WEAK Scaling Benchmark (PBS)"
+echo "=========================================="
+echo "Job ID: $PBS_JOBID"
+echo "Node: $(hostname)"
+echo "Start time: $(date)"
+echo "Output file: $OUTPUT_FILE"
+echo "CSV file: $CSV_FILE"
+echo ""
+
+# Header for CSV results
+echo "threads,N,theta,par_time,mean_time,std_time,min_time,max_time" > "$CSV_FILE"
+
+for threads in "${THREAD_COUNTS[@]}"; do
+    echo "------------------------------------------"
+    echo "Running with $threads thread(s)..."
+    echo "------------------------------------------"
+    
+    # Run Julia with specified thread count and capture output
+    OUTPUT=$(julia --threads=$threads --project="$PROJECT_DIR" "$SCRIPT_DIR/barnes_hut_benchmark.jl" 2>&1)
+    
+    # Save full output to log
+    echo "$OUTPUT" >> "$OUTPUT_FILE"
+    echo "$OUTPUT"
+    
+    # Extract CSV line and append to CSV file
+    CSV_LINE=$(echo "$OUTPUT" | grep "^CSV_OUTPUT:" | sed 's/CSV_OUTPUT://')
+    if [ -n "$CSV_LINE" ]; then
+        echo "$CSV_LINE" >> "$CSV_FILE"
+    fi
+    
+    echo ""
+done
+
+echo "=========================================="
+echo "Weak Scaling Benchmark Complete"
+echo "=========================================="
+
+# Generate plots
+echo ""
+echo "Generating plots..."
+julia --project="$PROJECT_DIR" "$SCRIPT_DIR/plot_barnes_hut_scaling.jl" "$CSV_FILE"
+
+echo ""
+echo "Results saved to:"
+echo "  CSV: $CSV_FILE"
+echo "  Log: $OUTPUT_FILE"
+echo ""
+echo "End time: $(date)"

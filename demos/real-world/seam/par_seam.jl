@@ -397,4 +397,4 @@ function energy_map(img)
 	return energy
 end
 
-main()
+# main() - commented out for benchmarking via include()

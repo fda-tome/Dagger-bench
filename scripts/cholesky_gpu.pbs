@@ -1,0 +1,77 @@
+#!/bin/bash
+#PBS -l select=1:ncpus=104:mem=350gb:ngpus=6
+#PBS -l walltime=2:00:00
+#PBS -A dagger
+#PBS -q prod
+#PBS -l filesystems=flare
+#PBS -N cholesky_gpu
+#PBS -o /flare/dagger/paper/Dagger-bench/results/cholesky_gpu.out
+#PBS -e /flare/dagger/paper/Dagger-bench/results/cholesky_gpu.err
+#PBS -j oe
+
+# Cholesky GPU Benchmark (PBS Batch Script)
+# Benchmarks Cholesky factorization on Intel GPUs via oneAPI
+# Submit with: qsub scripts/cholesky_gpu.pbs
+
+# Change to project directory
+cd /flare/dagger/paper/Dagger-bench
+
+# Setup paths
+SCRIPT_DIR="/flare/dagger/paper/Dagger-bench/scripts"
+PROJECT_DIR="/flare/dagger/paper/Dagger-bench"
+OUTPUT_DIR="${PROJECT_DIR}/results"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# Output files
+OUTPUT_FILE="${OUTPUT_DIR}/cholesky_gpu_${TIMESTAMP}.log"
+CSV_FILE="${OUTPUT_DIR}/cholesky_gpu_${TIMESTAMP}.csv"
+
+# Create results directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+echo "=========================================="
+echo "Cholesky GPU Benchmark (PBS)"
+echo "=========================================="
+echo "Job ID: $PBS_JOBID"
+echo "Node: $(hostname)"
+echo "Start time: $(date)"
+echo ""
+
+# Show GPU info
+echo "GPU Information:"
+echo "  Available Intel GPUs:"
+ls -la /dev/dri/ 2>/dev/null || echo "  (no /dev/dri devices found)"
+echo ""
+
+# Load oneAPI environment if needed (Aurora-specific)
+# module load oneapi  # Uncomment if needed
+
+# Configuration
+export MATRIX_SIZES="1024,2048,4096,8192,16384"
+export BLOCK_SIZE="1024"
+export NUM_WARMUP="1"
+export NUM_RUNS="3"
+
+echo "Configuration:"
+echo "  Matrix sizes: $MATRIX_SIZES"
+echo "  Block size: $BLOCK_SIZE"
+echo "  Warmup runs: $NUM_WARMUP"
+echo "  Benchmark runs: $NUM_RUNS"
+echo ""
+
+# Run benchmark
+echo "Running Cholesky GPU benchmark..."
+julia --project="$PROJECT_DIR" "$SCRIPT_DIR/cholesky_gpu_benchmark.jl" 2>&1 | tee "$OUTPUT_FILE"
+
+# Extract CSV data
+grep -E "^(Float32|Float64)," "$OUTPUT_FILE" > "$CSV_FILE" 2>/dev/null || true
+
+echo ""
+echo "=========================================="
+echo "Benchmark Complete"
+echo "=========================================="
+echo "End time: $(date)"
+echo ""
+echo "Results saved to:"
+echo "  Log: $OUTPUT_FILE"
+echo "  CSV: $CSV_FILE"

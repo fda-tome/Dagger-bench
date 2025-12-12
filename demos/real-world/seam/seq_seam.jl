@@ -87,5 +87,4 @@ function remove_vertical_seam(img, seam)
 	return out
 end
 
-main()
-
+# main() - commented out for benchmarking via include()
