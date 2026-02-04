@@ -1,0 +1,9 @@
+*
+!.gitignore
+!README.md
+!seam-carving/
+!barnes-hut/
+seam-carving/*
+barnes-hut/*
+!seam-carving/README.md
+!barnes-hut/README.md

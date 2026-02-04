@@ -2,18 +2,44 @@
 
 Automation utilities, batch runners, and helper scripts for benchmarks.
 
-All app benchmark entry points live at `benchmarks/scripts/<app>.jl` and expose `run_benchmark()`. Script runners should call that entry point rather than re-implementing logic.
+All app benchmark entry points live at `benchmarks/scripts/<app>.jl` and expose `run_benchmark()`. Script runners should call that entry point rather than re‑implementing logic.
 
-These examples assume `apps/<app>/` exists and is a Julia project (i.e. has a `Project.toml`).
+## Scripts project
 
-Example (repo root):
+The `benchmarks/scripts/` folder is a lightweight Julia project that can be used to run benchmarks while developing the app implementation.
 
-```bash
-julia --project=apps/barnes-hut -e 'include("benchmarks/scripts/barnes-hut.jl"); run_benchmark()'
-```
-
-Run all app benchmarks:
+From the repo root (single‑node, threads‑based):
 
 ```bash
-julia run_benchmarks.jl
+julia --project=benchmarks/scripts -t16 -e 'include("benchmarks/scripts/seam-carving.jl"); run_benchmark()'
 ```
+
+If you want GPU runs, load a backend before running:
+
+```julia
+using CUDA # or AMDGPU / oneAPI / Metal
+include("benchmarks/scripts/seam-carving.jl")
+run_benchmark()
+```
+
+## External project (terminal commands)
+
+From any external Julia project:
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.develop(path="/path/to/DaggerApps/benchmarks/scripts"); Pkg.instantiate()'
+julia --project=. -e 'using DaggerAppsBenchmarks; run_seam_carving()'
+```
+
+If you want GPU runs, load a backend in the same session:
+
+```bash
+julia --project=. -e 'using CUDA, DaggerAppsBenchmarks; run_seam_carving()'
+```
+
+## Notes
+
+- Seam‑carving benchmarks run on a single Julia process (no `Distributed` workers). Control parallelism with `-t` / `JULIA_NUM_THREADS`.
+- Timing uses BenchmarkTools with a warmup run to avoid compilation time.
+- Weak scaling uses `SEAM_WEAK_SCALE` (default `sqrt`) unless explicit `SEAM_WEAK_ROWS`/`SEAM_WEAK_COLS` are set.
+- `DaggerAppsBenchmarks` currently exposes `run_seam_carving()`; other apps can be added following the same pattern.

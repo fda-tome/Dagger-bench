@@ -1,12 +1,7 @@
 # Barnes–Hut
 
-Status: placeholder (docs-only).
+Status: placeholder (no runnable app yet).
 
-This folder will contain a Dagger.jl Barnes–Hut / N-body application.
+This folder is reserved for a Dagger.jl Barnes–Hut / N‑body application. Once implemented, it should contain a Julia project (`Project.toml`) and one or more runnable entry points.
 
-## Expected contents
-
-- Julia project: `Project.toml` (and optionally `Manifest.toml`)
-- One or more runnable entrypoints (e.g. `barnes-hut.jl`)
-- Any app-specific docs and usage notes
-
+The benchmark script (`benchmarks/scripts/barnes-hut.jl`) expects an app implementation to exist here, so it will remain non‑functional until the app is implemented.

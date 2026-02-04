@@ -1,10 +1,18 @@
 # Apps
 
-Apps (Dagger.jl applications) live here.
+Apps (Dagger.jl applications) live here. Each app directory is intended to be a self‑contained Julia project with its own `Project.toml` (and optionally a `Manifest.toml`).
 
-Each app directory is intended to be a self-contained Julia project (with its own `Project.toml`/`Manifest.toml`), but at the moment this repo keeps **docs-only placeholders** under each app folder.
+## Usage
+
+Instantiate an app environment:
+
+```bash
+julia --project=apps/<app> -e 'using Pkg; Pkg.instantiate()'
+```
+
+For app‑specific entry points and examples, see each app’s `README.md`.
 
 ## Current apps
 
-- `barnes-hut/`: Barnes–Hut N-body simulation.
-- `seam-carving/`: Content-aware image resizing (seam carving).
+- `barnes-hut/`: Barnes–Hut N‑body simulation (placeholder).
+- `seam-carving/`: Content‑aware image resizing (implemented).

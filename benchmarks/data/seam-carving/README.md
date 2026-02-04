@@ -1,6 +1,5 @@
-# Seam carving benchmark data
+# Seam‑carving benchmark data
 
-Place images or other assets needed for seam-carving benchmarks under this folder (for example: large test images).
+The default seam‑carving benchmark uses synthetic random matrices, so no data is required.
 
-Prefer keeping large images out of git and documenting how to fetch/generate them.
-
+If you want to benchmark real images, place them here and document how to fetch/generate them. Prefer keeping large images out of git.
