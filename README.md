@@ -1,203 +1,49 @@
-# Dagger-bench
+# DaggerApps
 
-## Overview
+A collection of [Dagger.jl](https://github.com/JuliaParallel/Dagger.jl) application folders (apps), plus optional benchmark scaffolding.
 
-This repository contains a comprehensive collection of **benchmarks and demonstrations** for [Dagger.jl](https://github.com/JuliaParallel/Dagger.jl), a framework for out-of-core and parallel computation in Julia. These benchmarks and demos serve as the **official artifacts** accompanying our research paper on parallel computing patterns and performance analysis in Julia.
+The primary goal of this repo is **apps**. Benchmarking scripts exist as an **optional add-on**, not the main focus.
 
-## About Dagger.jl
+Current status: the repo is being reorganized; app folders currently contain **docs-only placeholders** (README files) and will be populated with runnable Julia projects.
 
-[Dagger.jl](https://github.com/JuliaParallel/Dagger.jl) is a powerful Julia package that provides:
-
-- **Task-based parallelism**: Execute computations across multiple processors and machines
-- **Out-of-core computing**: Handle datasets larger than available memory
-- **Dynamic scheduling**: Intelligently distribute work across available resources
-- **Heterogeneous computing**: Support for CPUs, GPUs, and distributed systems
-- **Automatic dependency management**: Build complex computational graphs with ease
-
-## Repository Purpose
-
-This repository serves multiple purposes:
-
-1. **Performance Benchmarking**: Systematic evaluation of Dagger.jl's performance characteristics across various workload patterns and system configurations
-2. **Demonstration Suite**: Practical examples showcasing Dagger.jl's capabilities and best practices
-3. **Reproducible Research**: Complete artifacts enabling reproduction of results presented in our paper
-4. **Educational Resource**: Learning materials for developers interested in parallel computing with Julia
-
-## Structure
-
-The repository is organized to facilitate easy navigation and reproduction of results:
+## Repo Layout
 
 ```
-Dagger-bench/
-├── benchmarks/                # Performance benchmarks grouped by theme
-│   ├── comparison/
-│   ├── memory/
-│   ├── scalability/
-│   └── throughput/
-├── demos/                     # Demonstration applications
-│   ├── basic/                 # Reserved for introductory examples
-│   ├── advanced/
-│   │   └── barnes/            # Barnes-Hut parallel N-body demo
-│   │       ├── Project.toml
-│   │       └── barnes-hut.jl
-│   └── real-world/
-│       └── seam/              # Seam-carving image processing demo
-│           ├── Project.toml
-│           ├── par_seam.jl
-│           ├── seq_seam.jl
-│           └── Dagger.jl/     # Embedded Dagger.jl checkout for experiments
-├── data/                      # Sample datasets and results (placeholder)
-├── scripts/                   # Utility scripts for running benchmarks (placeholder)
-└── results/                   # Benchmark results and analysis (placeholder)
+DaggerApps/
+├── apps/                      # Dagger applications (one folder per app)
+│   ├── barnes-hut/            # Barnes–Hut N-body simulation
+│   └── seam-carving/          # Content-aware image resizing (seam carving)
+└── benchmarks/                # Optional benchmark suite for the apps
 ```
 
-## Getting Started
+## Apps
 
-### Prerequisites
+Apps live under `apps/<name>/`. Each app folder is expected to contain:
 
-- Julia 1.6 or higher
-- Dagger.jl package and its dependencies
-- (Optional) Multi-core processor or cluster for distributed benchmarks
+- `README.md`
+- a Julia project (`Project.toml`, optionally `Manifest.toml`)
+- one or more runnable entrypoints
 
-### Installation
+## Benchmarks (optional)
 
-1. Clone this repository:
-```bash
-git clone https://github.com/fda-tome/Dagger-bench.git
-cd Dagger-bench
-```
+Benchmarks live under `benchmarks/` and are intended to be run against the apps (once an app folder contains a Julia project).
 
-2. Install required Julia packages:
-```julia
-using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
-```
-
-### Running Benchmarks
-
-Each benchmark can be run independently using Julia. Drop benchmark scripts into the appropriate thematic folder under `benchmarks/` and include them directly:
-
-```julia
-# Example: Run a specific benchmark
-include("benchmarks/scalability/strong_scaling.jl")
-```
-
-Automation helpers belong under `scripts/`. When orchestration utilities are added, invoke them from there (placeholder).
-
-### Running Demos
-
-Each demo folder is a standalone Julia project; activate it before running scripts.
+Example:
 
 ```bash
-# Seam carving demo (parallel)
-cd demos/real-world/seam
-julia --project=. par_seam.jl
-
-# Seam carving demo (sequential reference)
-cd demos/real-world/seam
-julia --project=. seq_seam.jl
-
-# Barnes-Hut N-body demo
-cd demos/advanced/barnes
-julia --project=. barnes-hut.jl
+julia --project=apps/barnes-hut benchmarks/scripts/barnes-hut.jl
 ```
 
-The seam demo vendors a Dagger.jl checkout at `demos/real-world/seam/Dagger.jl/`. Run its package tests with:
+Run all app benchmarks:
 
 ```bash
-cd demos/real-world/seam/Dagger.jl
-julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+julia run_benchmarks.jl
 ```
-
-## Benchmark Categories
-
-### Scalability Benchmarks
-- **Strong Scaling**: Fixed problem size with increasing processors
-- **Weak Scaling**: Proportional problem size with increasing processors
-- **Efficiency Analysis**: Resource utilization and overhead measurements
-
-### Workload Patterns
-- **Embarrassingly Parallel**: Independent task execution
-- **Pipeline Processing**: Sequential stage processing
-- **MapReduce**: Data-parallel transformations and reductions
-- **Graph Computations**: Complex dependency graphs
-
-### System Configurations
-- Single-node multi-core
-- Multi-node distributed systems
-- Heterogeneous computing (CPU + GPU)
-- Memory-constrained environments
-
-## Paper Artifacts
-
-This repository contains all artifacts referenced in our paper:
-
-- **Benchmark Code**: All source code for performance measurements
-- **Raw Results**: Complete benchmark outputs and measurements
-- **Analysis Scripts**: Data processing and visualization code
-- **Figures and Tables**: Reproducible generation of all paper figures
-- **Environment Specifications**: Complete system configuration details
-
-Results can be reproduced by following the instructions in each benchmark directory.
-
-## Results and Analysis
-
-Benchmark results are stored in the `results/` directory with the following organization:
-
-- Raw data files (CSV, JSON)
-- Processed analysis outputs
-- Generated plots and visualizations
-- Statistical summaries
-
-See `results/README.md` for detailed information about interpreting and reproducing results.
 
 ## Contributing
 
-We welcome contributions to improve and extend these benchmarks:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/new-benchmark`)
-3. Add your benchmark or demo with appropriate documentation
-4. Ensure code follows Julia best practices
-5. Submit a pull request
-
-Please include:
-- Clear documentation of what the benchmark measures
-- Expected runtime and resource requirements
-- Instructions for interpretation of results
-
-## Citation
-
-If you use these benchmarks or build upon this work, please cite our paper:
-
-> **Note**: Citation details will be updated upon publication. The BibTeX entry below contains placeholder values.
-
-```bibtex
-@article{dagger-bench-2024,
-  title={Performance Analysis of Dagger.jl: A Study in Task-Based Parallel Computing},
-  author={[Authors]},
-  journal={[Journal/Conference]},
-  year={2024},
-  note={Artifacts available at: https://github.com/fda-tome/Dagger-bench}
-}
-```
-
-## Acknowledgments
-
-- The [Dagger.jl](https://github.com/JuliaParallel/Dagger.jl) development team
-- The Julia parallel computing community
-- Contributors to this benchmark suite
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For questions, issues, or suggestions:
-- Open an issue on [GitHub](https://github.com/fda-tome/Dagger-bench/issues)
-- Contact the maintainers through the issue tracker
+- Add new apps under `apps/<name>/` and include a short `README.md` plus a Julia project (`Project.toml`).
+- Keep apps runnable by default; document any cluster/GPU/MPI requirements.
 
 ## Related Resources
 
@@ -207,4 +53,4 @@ For questions, issues, or suggestions:
 
 ---
 
-**Note**: This repository is actively maintained as part of ongoing research. Benchmarks and demos are regularly updated to reflect the latest Dagger.jl capabilities and best practices.
+**Note**: This repository is actively maintained; apps and benchmarks may evolve over time. For reproducible runs, rely on each app’s `Manifest.toml` (when present).
