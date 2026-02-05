@@ -14,8 +14,8 @@ Each script defines a single entry point:
 
 Calling `run_benchmark()` runs:
 
-- **Strong scaling**: fixed problem size (measure performance under the current Dagger processor configuration).
-- **Weak scaling**: problem size proportional to the number of detected Dagger processors.
+- **Strong scaling**: fixed problem size (measure performance under the current resource configuration, e.g. Julia threads / Dagger processors).
+- **Weak scaling**: increase problem size with available resources (the exact scaling rule is benchmark-specific).
 
 To generate a scaling curve, rerun the same benchmark under different resource allocations (threads/workers/MPI ranks) and aggregate the CSV outputs.
 

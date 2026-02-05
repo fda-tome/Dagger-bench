@@ -143,9 +143,11 @@ function _thread_count()::Int
     return Threads.nthreads()
 end
 
+@inline _invoke0(f) = f()
+
 function _bench_times(f, runs::Int)::Vector{Float64}
     f() # warmup (compile)
-    trial = BenchmarkTools.@benchmark $f() samples=runs evals=1
+    trial = BenchmarkTools.@benchmark _invoke0($f) samples=runs evals=1
     return trial.times ./ 1e9
 end
 

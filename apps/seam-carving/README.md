@@ -9,6 +9,12 @@ This app provides the `DaggerSeamCarving` module (`src/DaggerSeamCarving.jl`) wi
 
 ## Quick usage
 
+First time only:
+
+```bash
+julia --project=apps/seam-carving -e 'using Pkg; Pkg.instantiate()'
+```
+
 ```bash
 julia --project=apps/seam-carving -e 'using DaggerSeamCarving; img=rand(Float32, 512, 512); DaggerSeamCarving.seam_carve_cpu_serial(img; k=1)'
 ```
@@ -23,6 +29,24 @@ GPU example:
 ```bash
 julia --project=apps/seam-carving -e 'using CUDA, DaggerSeamCarving; img=CUDA.CuArray(rand(Float32, 512, 512)); DaggerSeamCarving.seam_carve_gpu_dagger(img; k=1)'
 ```
+
+## Parallelism flavors
+
+Seam carving has a mix of *algorithmic* dependencies (some steps must happen in order) and *implementation* choices about how to expose parallel work. All variants here are **single-node** (one Julia process); CPU parallelism comes from Julia threads (`-t` / `JULIA_NUM_THREADS`).
+
+- **Pure serial baseline**: `seam_carve_cpu_serial` uses fully serial kernels (`energy_cpu_serial`, `cumulative_energy_cpu_serial`, `remove_seam_serial`). This is your reference for correctness and “no parallelism” overhead.
+- **CPU loop threading**: most non-serial CPU helpers use `Threads.@threads` internally (e.g. `energy_cpu`, `cumulative_energy_cpu`, `remove_seam`). This is data-parallelism *within* each stage.
+- **Dagger task graphs (CPU)**: the `seam_carve_cpu_dagger*` family uses Dagger tasks (`Dagger.@spawn`) to express higher-level parallel work and dependencies.
+  - `seam_carve_cpu_dagger`: coarse pipeline over stages (energy → DP → backtrack → remove), where each stage can itself be threaded.
+  - `seam_carve_cpu_dagger_tiled`: embarrassingly-parallel tiling for energy and seam-removal; DP/backtrack are still computed in a single step.
+  - `seam_carve_cpu_dagger_wavefront`: a tiled DP with a *wavefront* dependency pattern (each DP tile depends on tiles “above” it).
+  - `seam_carve_cpu_dagger_tileoverlap`: overlaps tiled energy with the DP wavefront to increase concurrency.
+  - `seam_carve_cpu_dagger_triangles`: decomposes DP into alternating triangle-shaped regions to relax dependencies.
+- **GPU kernel parallelism (KernelAbstractions)**: GPU variants use `@kernel` definitions for energy/DP/remove and rely on a loaded backend (CUDA/AMDGPU/oneAPI/Metal).
+  - `seam_carve_gpu_dagger`: runs GPU kernels but backtracks the seam on the CPU (host/device copies).
+  - `seam_carve_gpu_dagger_device`: keeps seam backtracking on-device (`find_seam_gpu_device`) to avoid host round-trips.
+
+Note: some variants combine Dagger task parallelism *and* `Threads.@threads` inside tasks; when exploring CPU performance, be mindful of potential nested parallelism/oversubscription.
 
 ## Benchmarks (single‑node)
 
