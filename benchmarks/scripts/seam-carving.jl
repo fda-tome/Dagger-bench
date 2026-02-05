@@ -172,14 +172,38 @@ function _bench_variant(variant::Symbol, rows::Int, cols::Int, k::Int, tile_h::I
     return _bench_times(f, runs)
 end
 
-function _weak_dims(rows::Int, cols::Int, threads::Int)
+function _weak_dims(
+    rows::Int,
+    cols::Int,
+    threads::Int;
+    weak_scale=nothing,
+    weak_rows::Union{Nothing, Int}=nothing,
+    weak_cols::Union{Nothing, Int}=nothing,
+)
+    if weak_rows !== nothing || weak_cols !== nothing
+        return weak_rows === nothing ? rows : weak_rows,
+               weak_cols === nothing ? cols : weak_cols,
+               nothing
+    end
+
     if haskey(ENV, "SEAM_WEAK_ROWS") || haskey(ENV, "SEAM_WEAK_COLS")
         wrows = parse(Int, get(ENV, "SEAM_WEAK_ROWS", string(rows)))
         wcols = parse(Int, get(ENV, "SEAM_WEAK_COLS", string(cols)))
         return wrows, wcols, nothing
     end
-    raw = lowercase(strip(get(ENV, "SEAM_WEAK_SCALE", "sqrt")))
-    scale = raw == "sqrt" ? sqrt(threads) : raw == "linear" ? threads : parse(Float64, raw)
+
+    if weak_scale === nothing
+        weak_scale = lowercase(strip(get(ENV, "SEAM_WEAK_SCALE", "sqrt")))
+    end
+
+    scale =
+        weak_scale isa Symbol && weak_scale === :sqrt ? sqrt(threads) :
+        weak_scale isa AbstractString && lowercase(strip(weak_scale)) == "sqrt" ? sqrt(threads) :
+        weak_scale isa Symbol && weak_scale === :linear ? threads :
+        weak_scale isa AbstractString && lowercase(strip(weak_scale)) == "linear" ? threads :
+        weak_scale isa Real ? float(weak_scale) :
+        parse(Float64, String(weak_scale))
+
     wrows = max(1, round(Int, rows * scale))
     wcols = max(1, round(Int, cols * scale))
     return wrows, wcols, scale
@@ -195,6 +219,32 @@ function _parse_scenarios()
         return ("weak",)
     else
         error("Unknown SEAM_SCENARIOS=$raw. Use strong|weak|both.")
+    end
+end
+
+function _normalize_scenarios(scenarios)
+    scenarios === nothing && return _parse_scenarios()
+
+    _one(x) = begin
+        s = x isa Symbol ? lowercase(String(x)) : lowercase(strip(String(x)))
+        s in ("both", "all") && return ("strong", "weak")
+        s in ("strong", "weak") && return (s,)
+        error("Unknown scenario=$x. Use :strong, :weak, or :both.")
+    end
+
+    if scenarios isa Symbol || scenarios isa AbstractString
+        return _one(scenarios)
+    elseif scenarios isa Tuple || scenarios isa AbstractVector
+        out = String[]
+        for x in scenarios
+            for y in _one(x)
+                y in out || push!(out, y)
+            end
+        end
+        isempty(out) && error("Empty scenarios list.")
+        return tuple(out...)
+    else
+        error("Invalid scenarios type: $(typeof(scenarios)). Use Symbol/String or a tuple/vector of them.")
     end
 end
 
@@ -217,6 +267,13 @@ Configuration (environment variables):
 - `SEAM_WEAK_SCALE` (default: sqrt; options: sqrt|linear|<float>)
 - `SEAM_WEAK_ROWS` / `SEAM_WEAK_COLS` (override weak dimensions)
 - `SEAM_SCENARIOS` (default: both; strong|weak|both)
+
+Keyword arguments:
+- `scenarios`: override which scenarios to run (`:strong`, `:weak`, `:both` or a tuple/vector of them). When provided, this
+  takes precedence over `SEAM_SCENARIOS`.
+- `want_gpu`: override GPU variant filtering (when `false`, GPU variants are removed). When `nothing`, `SEAM_GPU` is used.
+- `weak_scale`: override weak scaling rule (`:sqrt`, `:linear`, or a numeric factor). When `nothing`, `SEAM_WEAK_SCALE` is used.
+- `weak_rows` / `weak_cols`: explicit weak dimensions override (takes precedence over `weak_scale` / `SEAM_WEAK_*`).
 """
 function run_benchmark(;
     runs::Int=parse(Int, get(ENV, "BENCH_RUNS", "3")),
@@ -227,13 +284,18 @@ function run_benchmark(;
     tile_w::Int=parse(Int, get(ENV, "SEAM_TILE_W", "150")),
     variants::Vector{Symbol}=_parse_variants(),
     device::Symbol=_parse_device(),
+    scenarios=nothing,
+    want_gpu=nothing,
+    weak_scale=nothing,
+    weak_rows::Union{Nothing, Int}=nothing,
+    weak_cols::Union{Nothing, Int}=nothing,
 )
     threads = _thread_count()
-    weak_rows, weak_cols, weak_scale = _weak_dims(rows, cols, threads)
-    scenarios = _parse_scenarios()
+    weak_rows, weak_cols, weak_scale_used = _weak_dims(rows, cols, threads; weak_scale=weak_scale, weak_rows=weak_rows, weak_cols=weak_cols)
+    scenarios = _normalize_scenarios(scenarios)
 
     device = _resolve_device(device)
-    want_gpu = get(ENV, "SEAM_GPU", "1") != "0"
+    want_gpu = want_gpu === nothing ? (get(ENV, "SEAM_GPU", "1") != "0") : Bool(want_gpu)
     if !want_gpu || device === :cpu
         if device === :cpu && any(v -> v in GPU_VARIANTS, variants)
             @warn "No GPU backend detected; skipping GPU variants. Load a backend (e.g. `using CUDA`) or set SEAM_DEVICE."
@@ -255,10 +317,10 @@ function run_benchmark(;
     println("Threads: $threads")
     println("Runs: $runs")
     println("Strong size: $(rows)x$(cols)")
-    if weak_scale === nothing
+    if weak_scale_used === nothing
         println("Weak size: $(weak_rows)x$(weak_cols)")
     else
-        println("Weak size: $(weak_rows)x$(weak_cols) (scale=$(round(weak_scale, digits=3)))")
+        println("Weak size: $(weak_rows)x$(weak_cols) (scale=$(round(weak_scale_used, digits=3)))")
     end
     println("Seams (k): $k")
     println("Tile size: $(tile_h)x$(tile_w)")
