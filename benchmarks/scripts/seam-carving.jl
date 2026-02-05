@@ -185,6 +185,19 @@ function _weak_dims(rows::Int, cols::Int, threads::Int)
     return wrows, wcols, scale
 end
 
+function _parse_scenarios()
+    raw = lowercase(strip(get(ENV, "SEAM_SCENARIOS", "both")))
+    if raw in ("both", "all", "")
+        return ("strong", "weak")
+    elseif raw in ("strong",)
+        return ("strong",)
+    elseif raw in ("weak",)
+        return ("weak",)
+    else
+        error("Unknown SEAM_SCENARIOS=$raw. Use strong|weak|both.")
+    end
+end
+
 """
     run_benchmark(; runs=3, rows=512, cols=512, k=1, tile_h=150, tile_w=150, variants=_parse_variants(), device=_parse_device())
 
@@ -203,6 +216,7 @@ Configuration (environment variables):
 - `SEAM_DEVICE` (default: auto; cpu|cuda|amdgpu|oneapi|metal)
 - `SEAM_WEAK_SCALE` (default: sqrt; options: sqrt|linear|<float>)
 - `SEAM_WEAK_ROWS` / `SEAM_WEAK_COLS` (override weak dimensions)
+- `SEAM_SCENARIOS` (default: both; strong|weak|both)
 """
 function run_benchmark(;
     runs::Int=parse(Int, get(ENV, "BENCH_RUNS", "3")),
@@ -216,6 +230,7 @@ function run_benchmark(;
 )
     threads = _thread_count()
     weak_rows, weak_cols, weak_scale = _weak_dims(rows, cols, threads)
+    scenarios = _parse_scenarios()
 
     device = _resolve_device(device)
     want_gpu = get(ENV, "SEAM_GPU", "1") != "0"
@@ -250,7 +265,8 @@ function run_benchmark(;
     println("Variants: $(join(string.(variants), ", "))")
     println()
 
-    for (scenario, s_rows, s_cols, label) in (("strong", rows, cols, "Strong"), ("weak", weak_rows, weak_cols, "Weak"))
+    for scenario in scenarios
+        s_rows, s_cols, label = scenario == "strong" ? (rows, cols, "Strong") : (weak_rows, weak_cols, "Weak")
         println(">>> $label scaling (rows=$(s_rows), cols=$(s_cols))")
         csv_path = joinpath(out_dir, "$(scenario)_scaling.csv")
         first = true

@@ -576,8 +576,8 @@ function cumulative_energy_gpu(E::AbstractArray{T, 2}) where T
     threads = DEFAULT_THREADS
     for y in 2:H
         dp_row_kernel!(backend, threads)(M, B, E, y, W; ndrange=W)
-        KA.synchronize(backend)
     end
+    KA.synchronize(backend)
     return M, B
 end
 
